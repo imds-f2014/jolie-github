@@ -1,33 +1,55 @@
 include "console.iol"
 include "string_utils.iol"
+include "file.iol"
 
+execution { concurrent }
 
-type events: void {
-    .event:string
+type GHInfo:void {
+    .username:string
+    .repo:string
 }
 
-interface getEvents {
+interface sendReq {
 RequestResponse:
-    ListRepoEvents( void )( undefined )
+    getForm( void )( string ),
+    ListEvents( GHInfo )( undefined )
 }
 
-outputPort EventsPort {
+inputPort MyInput {
+Location: "socket://localhost:8000/"
+Protocol: http {
+    .format -> format;
+    .debug = true;
+    .debug.showContent = true
+}
+Interfaces: sendReq
+}
+
+outputPort GitHubPort {
 	Location:
-        "socket://api.github.com:443/repos/mvillumsen/ProgrammingAssignment2/"	
+        "socket://api.github.com:443"	
     Protocol: https {
-        .osc.ListRepoEvents.alias = "events";
+        .osc.ListEvents.alias = "repos/%{username}/%{repo}/events";
         .method = "get";
         .addHeader.header[0] = "User-Agent";
         .addHeader.header[0].value = "Blah";
         .ssl.protocol = "TLSv1.2";
         .debug = true;
         .debug.showContent = true }
-	Interfaces: getEvents
+	Interfaces: sendReq
 }
 
 main {
-    ListRepoEvents@EventsPort( )( e );
-    valueToPrettyString@StringUtils( e )( s );
-    println@Console( s )()
+    [ ListEvents( req )( res ) {
+        ListEvents@GitHubPort( req )( res )
+        //valueToPrettyString@StringUtils( res )( s );
+        //println@Console( s )()
+    } ] { nullProcess }
+
+    [ getForm()( form ) {
+        format = "html";
+        f.filename = "form.html";
+        readFile@File( f ) ( form )
+    } ] { nullProcess }
 }
 
